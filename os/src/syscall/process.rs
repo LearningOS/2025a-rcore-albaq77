@@ -5,8 +5,6 @@
 use crate::{syscall, task::{ exit_current_and_run_next, suspend_current_and_run_next, TASK_MANAGER }, timer::get_time_us
 };
 
-use crate::config::MAX_SYSCALL_NUM;
-
 
 #[repr(C)]
 #[derive(Debug)]
@@ -58,16 +56,7 @@ pub fn sys_trace(_trace_request: usize, id: usize, data: usize) -> isize {
             0
         }
         2 => {
-            if id < MAX_SYSCALL_NUM {
-                let mut syscall_count = 0;
-                TASK_MANAGER.update_current_task(|task| {
-                    task.syscall_counts[id] += 1;
-                    syscall_count = task.syscall_counts[id];
-                });
-                syscall_count as isize
-            } else {
-                -1
-            }
+            TASK_MANAGER.get_task_syscall_count(id)
 
         }
         _ => -1,

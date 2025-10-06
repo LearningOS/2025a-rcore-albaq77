@@ -10,8 +10,6 @@ pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
 pub const KERNEL_HEAP_SIZE: usize = 0x20000;
 /// the max number of apps
 pub const MAX_APP_NUM: usize = 16;
-/// the max number of tasks, a app
-pub const MAX_SYSCALL_NUM: usize = 512;
 /// base_addr(changed) of app
 pub const APP_BASE_ADDRESS: usize = 0x80400000;
 /// size limit of app
