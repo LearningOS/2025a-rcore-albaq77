@@ -22,7 +22,6 @@ const SYSCALL_GET_TIME: usize = 169;
 const SYSCALL_TRACE: usize = 410;
 
 use crate::task::TASK_MANAGER;
-use crate::config::MAX_SYSCALL_NUM;
 
 mod fs;
 mod process;

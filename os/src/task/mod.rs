@@ -149,9 +149,8 @@ impl TaskManager {
     
     /// get count
     pub fn get_task_syscall_count(&self, task_id: usize) -> isize {
-        let mut inner = self.inner.exclusive_access();
+        let inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        // inner.tasks[current].syscall_counts[task_id] += 1;
         inner.tasks[current].syscall_counts[task_id] as isize
     }
 }
