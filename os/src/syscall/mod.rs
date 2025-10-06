@@ -22,6 +22,7 @@ const SYSCALL_GET_TIME: usize = 169;
 const SYSCALL_TRACE: usize = 410;
 
 use crate::task::TASK_MANAGER;
+use crate::config::MAX_SYSCALL_NUM;
 
 mod fs;
 mod process;
@@ -32,7 +33,7 @@ use process::*;
 
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
-    TASK_MANAGER.increase_current_task_syscall_count();
+    TASK_MANAGER.increase_current_task_syscall_count(syscall_id);
 
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
