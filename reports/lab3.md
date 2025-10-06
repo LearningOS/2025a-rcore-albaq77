@@ -1,15 +1,3 @@
-![alt text](image.png)
+increase field syscall_counts in TaskControlBlock
 
-
-cargo build --release
-
-timeout --foreground 30s qemu-system-riscv64 \
-	-machine virt \
-	-nographic \
-	-bios ../bootloader/rustsbi-qemu.bin \
-	-kernel target/riscv64gc-unknown-none-elf/release/os
-
-python3 check/ch3.py < stdout-ch3 || (\
-	make restore ; \
-	exit 1 ; \
-)
+create functions increase_current_task_syscall_count and get_task_syscall_count
