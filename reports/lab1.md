@@ -1,0 +1,5 @@
+increase field syscall_counts in TaskControlBlock
+
+create functions increase_current_task_syscall_count and get_task_syscall_count
+
+increase stack space
