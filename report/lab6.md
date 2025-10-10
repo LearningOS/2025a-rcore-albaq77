@@ -1,0 +1,1 @@
+pass lab6
