@@ -15,12 +15,15 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtPageNum, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
+use crate::config::MAX_SYSCALL_NUM;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+use crate::mm::address::VPNRange;
 
 pub use context::TaskContext;
 
@@ -153,6 +156,56 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// Increase syscall count for the current task
+    pub fn increase_current_task_syscall_count(&self, syscall_id: usize) {
+        if syscall_id >= MAX_SYSCALL_NUM {
+            return;
+        }
+        let mut inner = self.inner.exclusive_access();
+        let current_idx = inner.current_task; 
+        inner.tasks[current_idx].syscall_counts[syscall_id] += 1;
+    }
+
+    /// Get syscall count for a specific task
+    pub fn get_task_syscall_count(&self, task_id: usize) -> isize {
+        let inner = self.inner.exclusive_access();
+        let current_idx = inner.current_task; 
+        inner.tasks[current_idx].syscall_counts[task_id] as isize
+    }
+
+    /// task mmp
+    pub fn task_mmap(&self, start_vn: VirtAddr, end_vn: VirtAddr, start_vpn: VirtPageNum, end_vpn: VirtPageNum, map_perm: MapPermission) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current_idx = inner.current_task;
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if let Some(pte) = inner.tasks[current_idx].memory_set.translate(vpn) {
+                if pte.is_valid() {
+                    return false;
+                }
+            }
+        }
+        inner.tasks[current_idx].memory_set.insert_framed_area(start_vn, end_vn, map_perm);
+        true
+    }
+
+    /// task unmap
+    pub fn task_munmap(&self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current_idx = inner.current_task;
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if let Some(pte) = inner.tasks[current_idx].memory_set.translate(vpn) {
+                if !pte.is_valid() {
+                    return false;
+                }
+            }else {
+                return false;
+            }
+        }
+        inner.tasks[current_idx].memory_set.ms_munmap(start_vpn, end_vpn);
+        true
+    }
+
 }
 
 /// Run the first task in task list.

@@ -35,8 +35,8 @@ lazy_static! {
 }
 /// address space
 pub struct MemorySet {
-    page_table: PageTable,
-    areas: Vec<MapArea>,
+    pub page_table: PageTable,
+    pub areas: Vec<MapArea>,
 }
 
 impl MemorySet {
@@ -63,6 +63,7 @@ impl MemorySet {
             None,
         );
     }
+    
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
@@ -247,7 +248,6 @@ impl MemorySet {
             false
         }
     }
-
     /// append the area to new_end
     #[allow(unused)]
     pub fn append_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
@@ -260,6 +260,24 @@ impl MemorySet {
             true
         } else {
             false
+        }
+    }
+    /// remove mapArea
+    pub fn ms_munmap(&mut self, start_vpn: VirtPageNum, end_vpn: VirtPageNum){
+        let mut areas_to_remove = Vec::new();
+        
+        for (idx, area) in self.areas.iter().enumerate() {
+            let area_start = area.get_vpn_range().get_start();
+            let area_end = area.get_vpn_range().get_end();
+            
+            if area_start >= start_vpn && area_end <= end_vpn {
+                areas_to_remove.push(idx);
+            }
+        }
+        
+        for idx in areas_to_remove.iter().rev() {
+            let mut area = self.areas.remove(*idx);
+            area.unmap(&mut self.page_table);
         }
     }
 }
@@ -355,6 +373,9 @@ impl MapArea {
             }
             current_vpn.step();
         }
+    }
+    pub fn get_vpn_range(&self) -> VPNRange{
+        self.vpn_range
     }
 }
 
