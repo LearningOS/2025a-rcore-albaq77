@@ -3,11 +3,11 @@ use alloc::sync::Arc;
 
 use crate::{
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-    },
+    }, timer::get_time_us,
 };
 
 #[repr(C)]
@@ -110,7 +110,24 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    let us = get_time_us();
+    let time_val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    let buffers = translated_byte_buffer(
+        current_user_token(), 
+        _tz as *const u8, 
+        core::mem::size_of::<TimeVal>());
+    let mut time_var_ptr = &time_val as *const _ as *const u8;
+    for buffer in buffers {
+        unsafe {
+            time_var_ptr.copy_to(buffer.as_mut_ptr(), buffer.len());
+            time_var_ptr = time_var_ptr.add(buffer.len());
+        }
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
@@ -148,7 +165,26 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    // let curr_task = current_task().unwrap();
+    // let new_task = curr_task.fork();
+    // let new_pid = new_task.pid.0;
+    // let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+    // trap_cx.x[10] = 0;
+    // let curr_token = new_task.get_user_token();
+    // let path = translated_str(curr_token, _path);
+    // if let Some(data) = get_app_data_by_name(path.as_str()) {
+    //     new_task.exec(data);
+    //     add_task(new_task);
+    //     new_pid as isize
+    // } else {
+    //   -1  
+    // }
+
+    let curr_task = current_task().unwrap();
+    curr_task.spawn(_path)
+
+
 }
 
 // YOUR JOB: Set task priority.

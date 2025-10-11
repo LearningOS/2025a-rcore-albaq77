@@ -2,8 +2,10 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::loader::get_app_data_by_name;
+use crate::mm::{translated_str, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::task::{add_task};
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
@@ -204,6 +206,59 @@ impl TaskControlBlock {
         task_control_block
         // **** release child PCB
         // ---- release parent PCB
+    }
+    
+    /// test spawn =/= fork + exec
+    pub fn spawn(self: &Arc<Self>, path: *const u8) -> isize {
+        let token = self.get_user_token();
+        let path = translated_str(token, path);
+        if let Some(data) = get_app_data_by_name(path.as_str()) {
+            let (memory_set, user_sp, entry_point) = MemorySet::from_elf(data);
+            let trap_cx_ppn = memory_set
+                .translate(VirtAddr::from(TRAP_CONTEXT_BASE).into())
+                .unwrap()
+                .ppn();
+            let pid_handle = pid_alloc();
+            let kernel_stack = kstack_alloc();
+            let kernel_stack_top = kernel_stack.get_top();
+            let new_task = Arc::new(TaskControlBlock {
+                pid: pid_handle,
+                kernel_stack,
+                inner: unsafe {
+                    UPSafeCell::new(TaskControlBlockInner {
+                        trap_cx_ppn,
+                        base_size: user_sp,
+                        task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                        task_status: TaskStatus::Ready,
+                        memory_set,
+                        parent: Some(Arc::downgrade(&self)),
+                        children: Vec::new(),
+                        exit_code: 0,
+                        heap_bottom: user_sp,
+                        program_brk: user_sp,
+                }) 
+                }
+            });
+            let new_pid = new_task.pid.0;
+            let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+                *trap_cx = TrapContext::app_init_context(
+                    entry_point,
+                    user_sp,
+                    KERNEL_SPACE.exclusive_access().token(),
+                    kernel_stack_top,
+                    trap_handler as usize,
+                );
+
+            let mut parent_inner = self.inner_exclusive_access();
+            parent_inner.children.push(new_task.clone());
+            drop(parent_inner);
+            add_task(new_task);
+
+            new_pid as isize
+        } else {
+            -1
+        }
+
     }
 
     /// get pid of process
