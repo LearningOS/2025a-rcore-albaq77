@@ -71,11 +71,19 @@ impl Processor {
               return -1;  
             }
         }
-        // for va in [start_vpn, end_vpn] {
-        //     current_task.inner_exclusive_access().memory_set.remove_area_with_start_vpn(start_vpn);
-        // }
+        
         current_task.inner_exclusive_access().memory_set.ms_munmap(start_vpn, end_vpn);
         0
+    }
+
+    pub fn set_stride(&self, prio: isize) {
+        self.current.as_ref().unwrap().set_priority(prio);
+        // if let Some(current) = self.current.as_ref() {
+        //     unsafe {
+        //         let ptr = current.as_ref() as *const _ as *mut TaskControlBlock;
+        //         (*ptr).stride = prio as u16;
+        //     }
+        // }
     }
 }
 

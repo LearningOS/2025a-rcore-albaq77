@@ -109,7 +109,7 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-
+    
     let us = get_time_us();
     let time_val = TimeVal {
         sec: us / 1_000_000,
@@ -117,16 +117,39 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     };
     let buffers = translated_byte_buffer(
         current_user_token(), 
-        _tz as *const u8, 
+        _ts as *const u8,
         core::mem::size_of::<TimeVal>());
-    let mut time_var_ptr = &time_val as *const _ as *const u8;
-    for buffer in buffers {
+    let mut time_val_ptr: *const u8;
+    
+    time_val_ptr = (&time_val as *const TimeVal).cast::<u8>();
+    for buffer in buffers{
         unsafe {
-            time_var_ptr.copy_to(buffer.as_mut_ptr(), buffer.len());
-            time_var_ptr = time_var_ptr.add(buffer.len());
+            time_val_ptr.copy_to(buffer.as_mut_ptr(), buffer.len());
+            time_val_ptr = time_val_ptr.add(buffer.len());
         }
     }
     0
+
+    // let time_val_bytes = unsafe {
+    //     core::slice::from_raw_parts(
+    //         &time_val as *const TimeVal as *const u8,
+    //         core::mem::size_of::<TimeVal>()
+    //     )
+    // };
+    
+    // let mut offset = 0;
+    // for buffer in buffers {
+    //     let len = buffer.len();
+    //     unsafe {
+    //         buffer.as_mut_ptr().copy_from_nonoverlapping(
+    //             time_val_bytes.as_ptr().add(offset),
+    //             len
+    //         );
+    //     }
+    //     offset += len;
+    // }
+    
+    // 0
 }
 
 /// YOUR JOB: Implement mmap.
@@ -200,7 +223,6 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-
     // let curr_task = current_task().unwrap();
     // let new_task = curr_task.fork();
     // let new_pid = new_task.pid.0;
@@ -218,17 +240,18 @@ pub fn sys_spawn(_path: *const u8) -> isize {
 
     let curr_task = current_task().unwrap();
     curr_task.spawn(_path)
-
-
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
+    if prio < 2 {
+        return -1;
+    }
 
-    
-    -1
+    PROCESSOR.exclusive_access().set_stride(prio);
+    prio
 }

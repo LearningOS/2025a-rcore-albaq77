@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{BIG_STRIDE, TRAP_CONTEXT_BASE};
 use crate::loader::get_app_data_by_name;
 use crate::mm::{translated_str, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
@@ -24,6 +24,10 @@ pub struct TaskControlBlock {
 
     /// Mutable
     inner: UPSafeCell<TaskControlBlockInner>,
+
+    /// stride 
+    pub stride: u16,
+    pub priority: u16,
 }
 
 impl TaskControlBlock {
@@ -122,6 +126,8 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                 })
             },
+            stride: 0,
+            priority: 16,
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
@@ -195,6 +201,8 @@ impl TaskControlBlock {
                     program_brk: parent_inner.program_brk,
                 })
             },
+            stride: 0,
+            priority: 16,
         });
         // add child
         parent_inner.children.push(task_control_block.clone());
@@ -237,7 +245,9 @@ impl TaskControlBlock {
                         heap_bottom: user_sp,
                         program_brk: user_sp,
                 }) 
-                }
+                },
+                stride: 0,
+                priority: 16,
             });
             let new_pid = new_task.pid.0;
             let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
@@ -265,6 +275,21 @@ impl TaskControlBlock {
         self.pid.0
     }
 
+    /// get pass
+    pub fn get_pass(&self) -> u16 {
+        if self.priority == 0 {
+            return BIG_STRIDE;
+        }
+        BIG_STRIDE / self.priority
+    }
+
+    pub fn set_priority(&self, prio: isize) {
+        
+        unsafe {
+            let ptr = self as *const _ as *mut TaskControlBlock;
+            (*ptr).priority = prio as u16;
+        }
+    }
     /// change the location of the program break. return None if failed.
     pub fn change_program_brk(&self, size: i32) -> Option<usize> {
         let mut inner = self.inner_exclusive_access();
