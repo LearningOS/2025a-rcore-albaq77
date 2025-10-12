@@ -2,13 +2,12 @@
 use alloc::sync::Arc;
 
 use crate::{
-    loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, translated_refmut, translated_str},
-    task::{
+    config::PAGE_SIZE, loader::get_app_data_by_name, mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr}, task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-    }, timer::get_time_us,
+    }, timer::get_time_us
 };
+use crate::task::processor::PROCESSOR;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -131,21 +130,57 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    if port & !0x7 != 0 || port & 0x7 == 0 {
+        return -1;
+    }
+
+    if len == 0 {
+        return 0;
+    }
+    let mut map_perm = MapPermission::U;
+    if port & 0x1 != 0 {
+        map_perm |= MapPermission::R;
+    }
+    if port & 0x2 != 0 {
+        map_perm |= MapPermission::W;
+    }
+    if port & 0x4 != 0 {
+        map_perm |= MapPermission::X;
+    }
+    let start_va  = VirtAddr::from(start);
+    let end_va = VirtAddr::from(start + len);
+    let start_vpn = start_va.floor();
+    let end_vpn = end_va.ceil();
+    PROCESSOR.exclusive_access().mmap(start_va, end_va, start_vpn, end_vpn, map_perm)
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    if start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    if len == 0 {
+        return 0;
+    }
+
+    let start_va: VirtAddr = VirtAddr::from(start);
+    let end_va: VirtAddr = VirtAddr::from(start + len);
+    let start_vpn= start_va.floor();
+    let end_vpn = end_va.ceil();
+    PROCESSOR.exclusive_access().munmap(start_vpn, end_vpn)
 }
 
 /// change data segment size
@@ -193,5 +228,7 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
+
+    
     -1
 }

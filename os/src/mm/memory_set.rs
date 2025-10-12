@@ -72,6 +72,25 @@ impl MemorySet {
             self.areas.remove(idx);
         }
     }
+
+    /// remove mapArea
+    pub fn ms_munmap(&mut self, start_vpn: VirtPageNum, end_vpn: VirtPageNum){
+        let mut areas_to_remove = Vec::new();
+        
+        for (idx, area) in self.areas.iter().enumerate() {
+            let area_start = area.get_vpn_range().get_start();
+            let area_end = area.get_vpn_range().get_end();
+            
+            if area_start >= start_vpn && area_end <= end_vpn {
+                areas_to_remove.push(idx);
+            }
+        }
+        
+        for idx in areas_to_remove.iter().rev() {
+            let mut area = self.areas.remove(*idx);
+            area.unmap(&mut self.page_table);
+        }
+    }
     /// Add a new MapArea into this MemorySet.
     /// Assuming that there are no conflicts in the virtual address
     /// space.
@@ -399,6 +418,10 @@ impl MapArea {
             }
             current_vpn.step();
         }
+    }
+
+    pub fn get_vpn_range(&self) -> VPNRange{
+        self.vpn_range
     }
 }
 

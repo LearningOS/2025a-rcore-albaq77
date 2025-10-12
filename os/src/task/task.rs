@@ -258,7 +258,6 @@ impl TaskControlBlock {
         } else {
             -1
         }
-
     }
 
     /// get pid of process

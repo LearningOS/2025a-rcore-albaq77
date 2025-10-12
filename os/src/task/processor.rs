@@ -7,10 +7,12 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, VirtPageNum, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
+use crate::mm::address::VPNRange;
 
 /// Processor management structure
 pub struct Processor {
@@ -43,6 +45,37 @@ impl Processor {
     ///Get current task in cloning semanteme
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
+    }
+
+    pub fn mmap(&self, start_va: VirtAddr, end_va: VirtAddr, start_vpn: VirtPageNum, end_vpn: VirtPageNum, map_perm: MapPermission) -> isize {
+        let current_task = self.current.as_ref().unwrap();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if let Some(pte) = current_task.inner_exclusive_access().memory_set.translate(vpn) {
+                if pte.is_valid() {
+                    return -1;
+                }
+            }
+        }
+        current_task.inner_exclusive_access().memory_set.insert_framed_area(start_va, end_va, map_perm);
+        0
+    }
+
+    pub fn munmap(&self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> isize {
+        let current_task = self.current.as_ref().unwrap();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if let Some(pte) = current_task.inner_exclusive_access().memory_set.translate(vpn) {
+                if !pte.is_valid() {
+                    return -1;
+                }
+            } else {
+              return -1;  
+            }
+        }
+        // for va in [start_vpn, end_vpn] {
+        //     current_task.inner_exclusive_access().memory_set.remove_area_with_start_vpn(start_vpn);
+        // }
+        current_task.inner_exclusive_access().memory_set.ms_munmap(start_vpn, end_vpn);
+        0
     }
 }
 
